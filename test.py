@@ -1,8 +1,10 @@
 import networkx as nx
+import sys
 import os
 from sklearn.metrics import normalized_mutual_info_score  # NMI
 from sklearn.metrics import adjusted_mutual_info_score  # AMI
 from networkx.algorithms.community import modularity # Modularidad
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from gclus import multi_cluster_GCLUS, visualize_clusters
 import numpy as np
 from sklearn.decomposition import PCA

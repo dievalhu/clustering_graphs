@@ -205,25 +205,6 @@ def BranchCheck(C, R, G, l, h, k_prime, trussness):
     return True
 
 
-def GC_BranchBound(C, R, G, l, h, k_prime, trussness):
-    """GC-B&B: Basic Branch and Bound algorithm."""
-    if k_prime == k_star:
-        return H
-    if len(C) >= l:
-        k_hat = max([k for k in range(2, max(trussness.values()) + 1) 
-                     if len([v for v in nx.node_connected_component(G, q) if trussness[v] >= k]) >= l])
-        if k_hat > k_prime:
-            k_prime = k_hat
-            H = nx.subgraph(G, C)
-    
-    if len(C) < h and len(R) > 0:
-        v_star = max(R, key=lambda x: (len(set(G.neighbors(x)) & C), trussness[x]))
-        GC_BranchBound(C | {v_star}, R - {v_star}, G, l, h, k_prime, trussness)
-        GC_BranchBound(C, R - {v_star}, G, l, h, k_prime, trussness)
-    
-    return H
-
-
 def GC_BranchBoundP(G, q, l, h, k_star, k_prime, C, R, trussness):
     """GC-B&BP: Optimized Branch and Bound with Pruning."""
     H = None
@@ -268,7 +249,7 @@ def GC_Final(G, q, l, h, trussness):
     if H.edges:
         k_prime = min(trussness[tuple(sorted(edge))] for edge in H.edges)
     else:
-        k_prime = k_star  # Or some other default value
+        k_prime = k_star
     
     if k_prime != k_star:
         C = {q}
@@ -482,7 +463,6 @@ def adjust_clusters(G, clusters, h_values):
     return clusters
 
 
-
 def multi_cluster_GCLUS(G, h_values, delta=0.2, q_list=None, max_iterations=5):
     """
     Genera múltiples clusters utilizando el algoritmo STCS y garantiza que respeten las restricciones de tamaño especificadas para cada cluster.
@@ -514,6 +494,7 @@ def multi_cluster_GCLUS(G, h_values, delta=0.2, q_list=None, max_iterations=5):
         cluster_nodes = set([q])  # Incluir q en el cluster desde el inicio
         if q in din_G.nodes:  # Verificar si el nodo está en el grafo
             trussness = truss_decomposition(din_G)
+            print(trussness)
             H = GC_Final(din_G, q, l_values[idx], h_values[idx], trussness)
             H_nodes_filtered = {n for n in H.nodes if n not in assigned_nodes}
 
@@ -644,7 +625,6 @@ def multi_cluster_GCLUS(G, h_values, delta=0.2, q_list=None, max_iterations=5):
         # Si no quedan nodos sin asignar, salir del bucle
         if not unclustered_nodes:
             break
-
 
 
     # Paso 3: Asignar nodos restantes si es necesario

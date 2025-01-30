@@ -494,7 +494,6 @@ def multi_cluster_GCLUS(G, h_values, delta=0.2, q_list=None, max_iterations=5):
         cluster_nodes = set([q])  # Incluir q en el cluster desde el inicio
         if q in din_G.nodes:  # Verificar si el nodo está en el grafo
             trussness = truss_decomposition(din_G)
-            print(trussness)
             H = GC_Final(din_G, q, l_values[idx], h_values[idx], trussness)
             H_nodes_filtered = {n for n in H.nodes if n not in assigned_nodes}
 

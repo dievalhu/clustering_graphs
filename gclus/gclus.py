@@ -475,7 +475,7 @@ def multi_cluster_GCLUS(G, h_values, delta=0.2, q_list=None, max_iterations=5):
     # Verificación de que la suma de h_values sea igual a la cantidad de nodos en el grafo
     total_nodes = G.number_of_nodes()
     if sum(h_values) != total_nodes:
-        raise ValueError("La suma de h_values debe ser igual a la cantidad de nodos en el grafo.")
+        raise ValueError("La suma de los tamanios debe ser igual a la cantidad de nodos en el grafo.")
 
     final_clusters = []
     assigned_nodes = set()

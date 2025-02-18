@@ -316,7 +316,7 @@ def analisis_memoria(k_list, G, repetitions=10, delta=0.1):
 
 
 # Define the base path to the test files
-base_path = os.path.join('test')
+base_path = os.path.join('datasets')
 
 # ### Aplicacion
 

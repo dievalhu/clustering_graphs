@@ -11,11 +11,7 @@ from networkx.algorithms.community import modularity
 from pyvis.network import Network
 import networkx as nx
 
-
 __author__ = """Kevin Castillo (kev.gcastillo@outlook.com)"""
-#    Copyright (C) 2024 by
-#    Kevin Castillo <kev.gcastillo@outlook.com>
-#    All rights reserved.
 
 def visualize_clusters(G, clusters, output_path="clusters_graph.html"):
     """
@@ -89,7 +85,6 @@ def node_trussness(G, trussness):
     for node in G.nodes:
         connected_edges = list(G.edges(node))
         if connected_edges:
-            # Utilice únicamente los bordes que existen en trussness, con un valor predeterminado si no se encuentra
             node_truss[node] = min(trussness.get(tuple(sorted(edge)), 2) for edge in connected_edges)
         else:
             node_truss[node] = 0

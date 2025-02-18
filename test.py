@@ -795,7 +795,7 @@ print(f"AMI GCLUS karate: {ami_gclus}")
 # plt.tight_layout()
 # plt.show()
 
-# graficas tamanios
+# graficas tamanios ESP
 
 # # Datos
 # k_list = [2, 3, 4, 5]
@@ -819,6 +819,31 @@ print(f"AMI GCLUS karate: {ami_gclus}")
 # plt.grid(True)
 # plt.legend()
 # plt.show()
+
+# graficas tamanios ENG
+
+# Datos
+k_list = [2, 3, 4, 5]
+dolphins = [0.0000, 7.2667, 4.4000, 5.0400]
+karate = [0.0000, 3.9333, 2.5000, 2.2000]
+pol_books = [0.0000, 9.5333, 6.2500, 9.1200]
+les_miserables = [0.0000, 9.9333, 4.7500, 4.5200]
+
+# Crear el gráfico
+plt.figure(figsize=(10, 6))
+plt.plot(k_list, dolphins, marker='o', linestyle='-', label='Dolphins')
+plt.plot(k_list, karate, marker='o', linestyle='-', label='Karate')
+plt.plot(k_list, pol_books, marker='o', linestyle='-', label='Polbooks')
+plt.plot(k_list, les_miserables, marker='o', linestyle='-', label='Les Misérables')
+
+# Configuración del gráfico
+plt.title("Average Size Variation of GCLUS for Different Values of k")
+plt.xlabel("Number of Clusters (k)")
+plt.ylabel("Average Size Variation")
+plt.xticks(k_list)
+plt.grid(True)
+plt.legend()
+plt.show()
 
 # grafico de radar tiempo
 

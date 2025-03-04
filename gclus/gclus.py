@@ -43,6 +43,20 @@ def visualize_clusters(G, clusters, output_path="clusters_graph.html"):
     net.write_html(output_path)
     print(f"Grafo guardado en {output_path}")
 
+def visualize_clusters_simple(G, clusters):
+    """Visualiza el grafo en base a los clusters generados."""
+    pos = nx.spring_layout(G)  # Layout para los nodos
+    cmap = plt.get_cmap('viridis')  # Colormap para los colores
+
+    # Asignar un color único a cada cluster
+    for i, cluster in enumerate(clusters):
+        color = cmap(i / len(clusters))
+        nx.draw_networkx_nodes(G, pos, nodelist=list(cluster.nodes), node_size=300, node_color=[color] * len(cluster.nodes))
+
+    # Dibujar aristas y etiquetas
+    nx.draw_networkx_edges(G, pos, alpha=0.5)
+    nx.draw_networkx_labels(G, pos)
+    plt.show()
 
 def select_pivots(G, num_pivots):
     """Selecciona nodos pivote en base a la centralidad de grado o alguna otra métrica de importancia."""
@@ -363,18 +377,20 @@ def assign_unclustered_nodes(G, all_clusters, l, h, pivots, blocked_clusters):
     for node in unclustered_nodes:
         best_cluster = None
         best_conductance = float('inf')
-
         for idx, cluster in enumerate(all_clusters):
-            if idx < len(blocked_clusters) and blocked_clusters[idx]:  # Saltar clusters bloqueados
+            if idx < len(blocked_clusters) and blocked_clusters[idx]:
                 continue
             if len(cluster) < h:
-                cond = conductance(G, cluster, {node})
+                try:
+                    cond = conductance(G, cluster, {node})
+                except ZeroDivisionError:
+                    cond = float('inf')
                 if cond < best_conductance:
                     best_conductance = cond
                     best_cluster = cluster
-
         if best_cluster is not None:
             best_cluster.add(node)
+
 
     # Segunda pasada: Reasignar nodos considerando caminos mínimos a los pivotes
     distances_to_pivots = {pivot: nx.single_source_shortest_path_length(G, pivot) for pivot in pivots}
@@ -405,56 +421,77 @@ def assign_unclustered_nodes(G, all_clusters, l, h, pivots, blocked_clusters):
     return all_clusters
 
 
+def safe_shortest_path_length(G, source, target):
+    try:
+        return nx.shortest_path_length(G, source, target)
+    except nx.NetworkXNoPath:
+        return float('inf')
+
 def adjust_clusters(G, clusters, h_values):
     """
     Ajusta los clusters para que se alineen con los tamaños especificados.
-    Garantiza que los nodos reasignados mantengan conexiones directas al nuevo cluster.
+    Garantiza que los nodos reasignados mantengan conexiones directas al nuevo cluster,
+    y utiliza una búsqueda en dos etapas para escenarios con dos o más grupos.
     """
     # Asegurar que h_values coincida con la cantidad de clusters
     if len(h_values) != len(clusters):
         h_values = h_values[:len(clusters)] + [max(h_values)] * (len(clusters) - len(h_values))
-
-    for idx, h in enumerate(h_values):
-        while len(clusters[idx]) > h:  # Si el cluster excede el tamaño deseado
-            # Paso 1: Seleccionar nodo para extraer (menor conectividad interna)
-            node_to_remove = min(
-                clusters[idx],
-                key=lambda n: len(set(G.neighbors(n)) & clusters[idx])
-            )
-            clusters[idx].remove(node_to_remove)
-
-            # Paso 2: Inicializar variables
-            best_cluster = None
-            best_distance = float('inf')
-
-
-            for j, cluster in enumerate(clusters):
-                if j == idx or len(cluster) >= h_values[j]:  # No reasignar al mismo cluster ni a clusters llenos
-                    continue
-                if any(neighbor in cluster for neighbor in G.neighbors(node_to_remove)):
-                    distance = min(nx.shortest_path_length(G, node_to_remove, target) for target in cluster)
-                    if distance < best_distance:
-                        best_distance = distance
-                        best_cluster = cluster
     
-            # Si no se encuentra un cluster en la primera pasada, buscar por caminos mínimos
-            if (not best_cluster) and len(h_values) == 2:
+    changed = True
+    # Bucle externo: continúa hasta que no se puedan hacer más ajustes
+    while changed:
+        changed = False
+        # Itera sobre cada cluster y ajusta si excede el tamaño deseado
+        for idx, h in enumerate(h_values):
+            # Mientras el cluster tenga más nodos que h, intentamos mover alguno
+            while len(clusters[idx]) > h:
+                # Paso 1: Seleccionar el nodo con menor conectividad interna en el cluster
+                node_to_remove = min(
+                    clusters[idx],
+                    key=lambda n: len(set(G.neighbors(n)) & clusters[idx])
+                )
+                clusters[idx].remove(node_to_remove)
+                
+                best_cluster = None
+                best_distance = float('inf')
+                
+                # Primera etapa: buscar clusters que compartan vecinos con node_to_remove
                 for j, cluster in enumerate(clusters):
                     if j == idx or len(cluster) >= h_values[j]:
                         continue
-                    distance = min(nx.shortest_path_length(G, node_to_remove, target) for target in cluster)
-                    if distance < best_distance:
-                        best_distance = distance
-                        best_cluster = cluster
+                    if any(neighbor in cluster for neighbor in G.neighbors(node_to_remove)):
+                        try:
+                            distance = min(safe_shortest_path_length(G, node_to_remove, target) for target in cluster)
+                        except ValueError:
+                            distance = float('inf')
 
-            # Reasignar el nodo
-            if best_cluster:
-                best_cluster.add(node_to_remove)
-            else:
-                # Si no hay un cluster adecuado, devolver al cluster original
-                clusters[idx].add(node_to_remove)
-                break  # Salir para evitar bucles infinitos
+                        if distance < best_distance:
+                            best_distance = distance
+                            best_cluster = j
 
+                # Segunda etapa: si no se encontró ninguno directamente conectado, buscar en todos los clusters no llenos
+                if best_cluster is None:
+                    for j, cluster in enumerate(clusters):
+                        if j == idx or len(cluster) >= h_values[j]:
+                            continue
+                        try:
+                            distance = min(safe_shortest_path_length(G, node_to_remove, target) for target in cluster)
+                        except ValueError:
+                            distance = float('inf')
+
+                        if distance < best_distance:
+                            best_distance = distance
+                            best_cluster = j
+
+                
+                # Si se encontró un cluster adecuado, se reasigna el nodo
+                if best_cluster is not None:
+                    clusters[best_cluster].add(node_to_remove)
+                    changed = True
+                else:
+                    # Si no hay cluster adecuado, se devuelve el nodo al cluster original y se sale del bucle
+                    clusters[idx].add(node_to_remove)
+                    break
     return clusters
 
 
@@ -480,42 +517,24 @@ def multi_cluster_GCLUS(G, h_values, delta=0.2, q_list=None, max_iterations=5):
     num_clusters = len(h_values)
     blocked_clusters = [False] * num_clusters  # Inicialmente, ningún cluster está bloqueado
 
-    
-    # Seleccionar pivotes si no se proporciona q_list
-    q_list = select_pivots(G, num_clusters)
+    final_clusters = []
+    G_remaining = G.copy()
+    q_list = []
 
-    # Paso 1: Generar clusters iniciales para cada nodo pivote
-    for idx, q in enumerate(q_list):
-        cluster_nodes = set([q])  # Incluir q en el cluster desde el inicio
-        if q in din_G.nodes:  # Verificar si el nodo está en el grafo
-            trussness = truss_decomposition(din_G)
-            H = GC_Final(din_G, q, l_values[idx], h_values[idx], trussness)
-            H_nodes_filtered = {n for n in H.nodes if n not in assigned_nodes}
-
-            # Garantizar que el nodo q esté en su cluster
-            if len(H_nodes_filtered) >= l_values[idx] or not H_nodes_filtered:
-                # Añadir q solo si no está ya en H_nodes_filtered
-                if q not in H_nodes_filtered:
-                    H_nodes_filtered.add(q)
-                assigned_nodes.update(H_nodes_filtered)
-                cluster_nodes.update(H_nodes_filtered)
-                din_G.remove_nodes_from(H_nodes_filtered)
-
-        # Aseguramos que el cluster tenga al menos el nodo q
-        if not cluster_nodes:
-            cluster_nodes.add(q)
-
-        # Si aún no se asignaron suficientes nodos, forzar la asignación de vecinos más cercanos
-        if len(cluster_nodes) < l_values[idx]:
-            if q in din_G.nodes:  # Verificar nuevamente antes de acceder a los vecinos
-                neighbors = set(din_G.neighbors(q)) - assigned_nodes
-                needed_nodes = l_values[idx] - len(cluster_nodes)
-                additional_nodes = list(neighbors)[:needed_nodes]  # Seleccionar nodos vecinos
-                cluster_nodes.update(additional_nodes)
-                assigned_nodes.update(additional_nodes)
-                din_G.remove_nodes_from(additional_nodes)
-
-        # Asegurar que cada cluster tenga nodos y agregarlo a final_clusters
+    for i in range(len(h_values)):
+        # Seleccionar pivote de G_remaining
+        pivot = select_pivots(G_remaining, 1)[0]
+        q_list.append(pivot)
+        # Generar cluster con GC_Final
+        trussness = truss_decomposition(G_remaining)
+        H_subgraph = GC_Final(G_remaining, pivot, l_values[i], h_values[i], trussness)
+        
+        # Convertir subgrafo a conjunto de nodos
+        cluster_nodes = set(H_subgraph.nodes)
+        
+        # Quitar estos nodos del grafo remanente
+        G_remaining.remove_nodes_from(cluster_nodes)
+        
         final_clusters.append(cluster_nodes)
 
     # Validar que se crearon exactamente el número de clusters requeridos
